@@ -13,7 +13,7 @@
 * @licence    http://opensource.org/licenses/gpl-3.0.html
 * @copyright  John Wohlers <john@wohlershome.net>
 * @version    1.0.1
-* @link       https://github.com/cap60552/php-sip2/
+* @link       https://github.com/bwicksall/php-sip2/
 */
 
 /**
@@ -33,6 +33,8 @@ class sip2
     public $port         = 6002; /* default sip2 port for Sirsi */
     public $library      = ''; 
     public $language     = '001'; /* 001= english */
+    public $cert         = 'sip.pem'; /* Full path to pem file */
+    public $conn_type    = 'tcp';     /* tcp, tls or ssl */
 
     /* Patron ID */
     public $patron       = ''; /* AA */
@@ -645,14 +647,11 @@ class sip2
         $nr         = '';
         
         $this->_debugmsg('SIP2: Sending SIP2 request...');
-        socket_write($this->socket, $message, strlen($message));
+        fwrite($this->socket, $message);
 
         $this->_debugmsg('SIP2: Request Sent, Reading response');
 
-        while ($terminator != "\x0D" && $nr !== FALSE) {
-            $nr = socket_recv($this->socket,$terminator,1,0);
-            $result = $result . $terminator;
-        }
+        $result = fread($this->socket, 8192);
 
         $this->_debugmsg("SIP2: {$result}");
 
@@ -681,31 +680,32 @@ class sip2
     function connect() 
     {
 
+        $contextOptions = array(
+            'tls' => array(
+                'verify_peer'   => false,
+                'cafile'        => $this->cert
+            ),
+            'ssl' => array(
+                'verify_peer'   => false,
+                'cafile'        => $this->cert
+            ),
+        );
+
+        $this->_debugmsg( "SIP2: Connection Type: $this->conn_type");
+        $context = stream_context_create($contextOptions);
+
         /* Socket Communications  */
-        $this->_debugmsg( "SIP2: --- BEGIN SIP communication ---");  
-        
-        /* Get the IP address for the target host. */
-        $address = gethostbyname($this->hostname);
-
-        /* Create a TCP/IP socket. */
-        $this->socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP);
-
-        /* check for actual truly false result using ===*/
-        if ($this->socket === false) {
-            $this->_debugmsg( "SIP2: socket_create() failed: reason: " . socket_strerror($this->socket));
-            return false;
-        } else {
-            $this->_debugmsg( "SIP2: Socket Created" ); 
-        }
-        $this->_debugmsg( "SIP2: Attempting to connect to '$address' on port '{$this->port}'..."); 
+        $this->_debugmsg( "SIP2: --- BEGIN SIP communication ---");
 
         /* open a connection to the host */
-        $result = socket_connect($this->socket, $address, $this->port);
-        if (!$result) {
-            $this->_debugmsg("SIP2: socket_connect() failed.\nReason: ($result) " . socket_strerror($result));
-        } else {
+        if ($this->socket = stream_socket_client($this->conn_type.'://'.$this->hostname.':'.$this->port, $errno, $errstr, 30, STREAM_CLIENT_CONNECT, $context)) {
             $this->_debugmsg( "SIP2: --- SOCKET READY ---" );
+            $result = true;
+        } else {
+            $this->_debugmsg( "SIP2: stream_socket_client() failed.  Reason: ($errno) - $errstr" );
+            $result = false;
         }
+
         /* return the result from the socket connect */
         return $result;
         
@@ -714,7 +714,7 @@ class sip2
     function disconnect () 
     {
         /*  Close the socket */
-        socket_close($this->socket);
+        fclose($this->socket);
     }
 
     /* Core local utility functions */	
