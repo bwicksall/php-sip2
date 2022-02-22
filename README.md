@@ -1,9 +1,13 @@
-# SIP2 communication library for PHP
+# SIP2 TLS/SSL communication library for PHP
 
 PHP class library to facilitate communication with Integrated Library System (ILS) servers via 3M's SIP2.
 
+This fork adds TLS and SSL so we can connect directly to secure Stunnel endpoints if available.
+
 
 ## Composer Installation
+
+Ignore this for now.
 
 To install this package, run this command:
 ```sh
